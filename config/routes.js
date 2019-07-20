@@ -1,4 +1,7 @@
 const axios = require('axios');
+const bcrypt = require("bcryptjs");
+
+const Users = require("./routes-functions.js");
 
 const { authenticate } = require('../auth/authenticate');
 
@@ -8,40 +11,41 @@ module.exports = server => {
   server.get('/api/jokes', authenticate, getJokes);
 };
 
-axios.post('/register', (req, res) => {
+function register(req, res) {
   let user = req.body;
-  const hash = bcrypt.hashSync(user.password, 10); // 2 ^ n
+  const hash = bcrypt.hashSync(user.password, 16);
   user.password = hash;
-
   Users.add(user)
     .then(saved => {
-      res.status(201).json(saved);
+      const token = tokenService.generateToken(user);
+      res.status(201).json({ saved, message: `Registered, ${token}` });
     })
     .catch(error => {
-      res.status(500).json(error);
+      res.status(500).json({error, message: 'Error: Cannot register user.'});
     });
-});
+}
 
-axios.post('/login', (req, res) => {
+
+function login(req, res) {
   let { username, password } = req.body;
-
   Users.findBy({ username })
     .first()
     .then(user => {
       if (user && bcrypt.compareSync(password, user.password)) {
-         const token = generateToken(user);
-
+        const token = tokenService.generateToken(user);
         res.status(200).json({
-          message: `Welcome ${user.username}!`, token
+          message: `Welcome ${user.username}!, this is your`,
+          token,
+          roles: token.roles
         });
       } else {
-        res.status(401).json({ message: 'Invalid Credentials' });
+        res.status(401).json({ message: "Invalid Credentials." });
       }
     })
     .catch(error => {
-      res.status(500).json(error);
+      res.status(500).json({error, message: '500 failure: Login'});
     });
-});
+}
 
 function getJokes(req, res) {
   const requestOptions = {
@@ -54,6 +58,6 @@ function getJokes(req, res) {
       res.status(200).json(response.data.results);
     })
     .catch(err => {
-      res.status(500).json({ message: 'Error Fetching Jokes', error: err });
+      res.status(500).json({ message: 'Error: Cannot fetch Jokes.', error: err });
     });
 }
